@@ -15,14 +15,18 @@
 ### Commands and results
 - `npm run typecheck` → pass
 - `npm run check:auth` → sign-in on (dev and build agree)
+- `GET /api/v1/health` → `{"ok":true,"service":"nexus","db":"pglite"}`
 - Playwright register → dashboard Overview
 - Connect X `@birdman` → imported timeline
 - Pages with H1 verified: Overview, Feed, Inbox, Calendar, Library, Approvals, Developers, Reports, Help, Analytics, Settings
+- Create API key → `nxk_` token shown once
+- Console pageerrors on those tours: none
+- Mobile 390px overview screenshot captured
 
 ### Blockers
-- Live Twitter/Meta OAuth: no operator developer keys.
-- Native Electron/iOS/Android: PWA only.
-- Magic-link password email: not enabled.
+- Live Twitter/Meta OAuth: no operator developer keys in this sandbox (`src/lib/nexus/demo.ts`).
+- Native Electron/iOS/Android: PWA only. Named in RESUME.md.
+- Magic-link password email: forbidden by auth skill; forgot-password page is honest.
 
 ### Next 3
 1. Finish source push onto `nexus-console-build`.
