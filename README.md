@@ -2,32 +2,34 @@
 
 One feed. Twelve networks. A social command center.
 
-Publish, listen, engage, and measure from a single dashboard.
+This repository is the TanStack Start app (Better Auth, Postgres, the console).
+The old Next.js stub that called a missing API has been removed.
 
-## Repositories
+## Stack
 
-- **Production monorepo:** [Mangu-Platforms/centuries](https://github.com/Mangu-Platforms/centuries) — Next.js web (`apps/web`) + Fastify API (`apps/api`)
-- **This repo:** [redinc23/nexus-console](https://github.com/redinc23/nexus-console) — standalone Vercel-ready web app (same `apps/web` surface)
-
-## Deploy
-
-- **This repo → Vercel project `nexus-console`** (root = repo root)
-- **Monorepo web → Vercel project `nexus`**, root directory `apps/web`
-- API → Railway (see `DEPLOY.md` in centuries)
-
-### Live (centuries / nexus)
-
-- Production: https://nexus-mocha-psi-88.vercel.app
-- Alias: https://nexus-redinc23s-projects.vercel.app
-- Latest deploy: https://nexus-15xionv7i-redinc23s-projects.vercel.app
+- TanStack Start + React 19 + Vite
+- Better Auth (email/password, plus Google/X when broker credentials are set)
+- Postgres in production, embedded Postgres locally when `DATABASE_URL` is unset
+- Nitro, deployed to Vercel
 
 ## Local
 
 ```bash
-cp .env.example .env.local
 npm install
+cp .env.example .env
 npm run dev
 ```
 
-`NEXT_PUBLIC_API_URL` defaults to `http://localhost:4000` (centuries `apps/api`).
-Demo workspace: chronological feed, composer, inbox, connections, analytics, settings.
+Open http://localhost:8080 and create an account (email, username, password).
+
+## Production
+
+Set these on the host before deploying:
+
+| Name | Why |
+| --- | --- |
+| `DATABASE_URL` | Postgres. Migrations run during `npm run build`. |
+| `BETTER_AUTH_SECRET` | Signs session cookies. |
+| `BETTER_AUTH_URL` | Public site origin. Sign-in rejects other origins. |
+
+`npm run build` builds the app and applies `migrations/`.

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="NEXUS">
+  <rect width="32" height="32" rx="8" fill="#0b0c0e"/>
+  <path fill="#e8eaed" d="M8 25V7h4.8l6.4 9.1V7H24v18h-4.8l-6.4-9.1V25H8z"/>
+  <circle cx="16" cy="15.6" r="2.15" fill="#5eead4"/>
+</svg>
