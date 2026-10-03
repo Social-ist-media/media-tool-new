@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { connectPlatform, disconnectPlatform, listConnections } from "@/lib/nexus/data";
+import { addRssSource, listRssSources, refreshRssSource, removeRssSource, type RssSourceRow } from "@/lib/nexus/pipeline";
 import { PLATFORM_META, PLATFORM_ORDER, PlatformGlyph } from "@/lib/nexus/platforms";
 import type { Connection, PlatformId } from "@/lib/nexus/types";
 import { cn } from "@/lib/utils";
@@ -20,10 +21,16 @@ function ConnectionsPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feeds, setFeeds] = useState<RssSourceRow[]>([]);
+  const [feedUrl, setFeedUrl] = useState("");
+  const [feedBusy, setFeedBusy] = useState(false);
 
   const load = () =>
-    listConnections()
-      .then(setConnections)
+    Promise.all([listConnections(), listRssSources()])
+      .then(([next, sources]) => {
+        setConnections(next);
+        setFeeds(sources);
+      })
       .catch(() => toast.error("Could not load connections."));
 
   useEffect(() => {
@@ -148,6 +155,76 @@ function ConnectionsPage() {
             ))}
           </ul>
         )}
+      </Card>
+      <Card>
+        <h2 className="font-semibold">RSS listens</h2>
+        <p className="mt-1 text-sm text-muted">Pull a public https feed into the unified timeline. Listen only — nothing is published back.</p>
+        <form
+          className="mt-4 flex flex-col gap-3 sm:flex-row"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setFeedBusy(true);
+            try {
+              const res = await addRssSource({ data: { url: feedUrl } });
+              toast.success(`Imported ${res.imported} new items from ${res.title}.`);
+              setFeedUrl("");
+              await load();
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Could not read that feed.");
+            } finally {
+              setFeedBusy(false);
+            }
+          }}
+        >
+          <Input
+            value={feedUrl}
+            onChange={(e) => setFeedUrl(e.target.value)}
+            placeholder="https://example.com/feed.xml"
+            type="url"
+            required
+          />
+          <Button type="submit" disabled={feedBusy}>
+            {feedBusy ? "Reading…" : "Add feed"}
+          </Button>
+        </form>
+        <ul className="mt-4 space-y-2">
+          {feeds.length === 0 && <li className="text-sm text-muted">No feeds yet.</li>}
+          {feeds.map((feed) => (
+            <li key={feed.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-border px-3 py-3">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{feed.title || feed.url}</span>
+                <span className="block truncate text-xs text-muted">{feed.url}</span>
+              </span>
+              <span className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      const res = await refreshRssSource({ data: { id: feed.id } });
+                      toast.success(`${res.imported} new items.`);
+                      await load();
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Refresh failed.");
+                    }
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await removeRssSource({ data: { id: feed.id } });
+                    await load();
+                  }}
+                >
+                  Remove
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
       </Card>
     </div>
   );

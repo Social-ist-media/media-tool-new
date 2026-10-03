@@ -140,6 +140,7 @@ export async function ensureProfile(userId: string): Promise<Profile> {
     const r = existing[0];
     return {
       userId,
+      username: String(r.username ?? ""),
       displayName: String(r.display_name ?? ""),
       bio: String(r.bio ?? ""),
       avatarUrl: String(r.avatar_url ?? ""),
@@ -170,7 +171,7 @@ export async function ensureProfile(userId: string): Promise<Profile> {
   } catch {
     /* ops tables apply on the next getSql() after 0003 */
   }
-  return { userId, displayName, bio: "", avatarUrl, theme: "dark", timezone: "UTC" };
+  return { userId, username: "", displayName, bio: "", avatarUrl, theme: "dark", timezone: "UTC" };
 }
 
 export const getProfile = createServerFn({ method: "POST" })
@@ -386,6 +387,94 @@ export const replyToPost = createServerFn({ method: "POST" })
     return mapPost({ ...row, reply_count: replyCount });
   });
 
+export async function runPublish(
+  userId: string,
+  data: {
+    content: string;
+    platforms: PlatformId[];
+    mediaUrls?: string[];
+    scheduledAt?: string | null;
+    idempotencyKey?: string;
+    firstComment?: string;
+    utm?: string;
+  },
+) {
+  if (data.platforms.includes("rss")) {
+    throw new Error("RSS is listen-only. Pick a social network to publish.");
+  }
+  const sql = await getSql();
+  if (data.idempotencyKey) {
+    const existing = await sql<{ id: string }>`
+      select id from publish_jobs
+      where user_id = ${userId} and idempotency_key = ${data.idempotencyKey}
+      limit 1
+    `;
+    if (existing[0]) {
+      return listJob(userId, existing[0].id);
+    }
+  }
+  const connections = await sql<{ platform: string }>`
+    select platform from connections where user_id = ${userId} and status = 'active'
+  `;
+  const connected = new Set(connections.map((c) => c.platform));
+  for (const p of data.platforms) {
+    if (!connected.has(p)) throw new Error(`Connect ${PLATFORM_META[p].name} before posting.`);
+  }
+  let body = data.content;
+  if (data.utm?.trim()) {
+    body = `${body.trim()} ${data.utm.trim()}`.trim();
+  }
+  const jobId = crypto.randomUUID();
+  const media = JSON.stringify(data.mediaUrls ?? []);
+  await sql`
+    insert into publish_jobs (id, user_id, content, media_urls, scheduled_at, idempotency_key)
+    values (${jobId}, ${userId}, ${body}, ${media}, ${data.scheduledAt ?? null}, ${data.idempotencyKey ?? null})
+  `;
+  await sql`
+    insert into job_meta (job_id, first_comment, utm)
+    values (${jobId}, ${data.firstComment ?? ""}, ${data.utm ?? ""})
+    on conflict (job_id) do update set first_comment = excluded.first_comment, utm = excluded.utm
+  `;
+  const scheduled = Boolean(data.scheduledAt && new Date(data.scheduledAt).getTime() > Date.now());
+  const results: PublishTargetResult[] = [];
+  for (const platform of data.platforms) {
+    const sim = scheduled ? { ok: true, error: "", latencyMs: 0 } : simulatePublish(platform, body);
+    const status = scheduled ? "pending" : sim.ok ? "success" : "failed";
+    const externalId = sim.ok && !scheduled ? `${platform}-${jobId.slice(0, 8)}` : "";
+    await sql`
+      insert into publish_targets (id, job_id, platform, status, external_id, error, latency_ms)
+      values (${crypto.randomUUID()}, ${jobId}, ${platform}, ${status}, ${externalId}, ${sim.error}, ${sim.latencyMs})
+    `;
+    if (status === "success") {
+      await sql`
+        insert into feed_posts (
+          id, user_id, platform, external_id, author_handle, author_name, author_avatar,
+          content, media_urls, is_own, posted_at
+        ) values (
+          ${crypto.randomUUID()}, ${userId}, ${platform}, ${externalId},
+          'you', 'You', '', ${body}, ${media}, true, now()
+        )
+        on conflict (user_id, platform, external_id) do nothing
+      `;
+    }
+    results.push({
+      platform,
+      status,
+      externalId,
+      error: sim.error,
+      latencyMs: sim.latencyMs,
+    });
+  }
+  await audit(userId, scheduled ? "post.schedule" : "post.publish", data.platforms.join(","));
+  await notify(
+    userId,
+    scheduled ? "Post scheduled" : "Post published",
+    body.slice(0, 120),
+    scheduled ? "/dashboard/calendar" : "/dashboard/feed",
+  );
+  return { jobId, results };
+}
+
 export const publishPost = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: unknown) =>
@@ -401,82 +490,7 @@ export const publishPost = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    if (data.idempotencyKey) {
-      const existing = await sql<{ id: string }>`
-        select id from publish_jobs
-        where user_id = ${context.userId} and idempotency_key = ${data.idempotencyKey}
-        limit 1
-      `;
-      if (existing[0]) {
-        return listJob(context.userId, existing[0].id);
-      }
-    }
-    const connections = await sql<{ platform: string }>`
-      select platform from connections where user_id = ${context.userId} and status = 'active'
-    `;
-    const connected = new Set(connections.map((c) => c.platform));
-    for (const p of data.platforms) {
-      if (!connected.has(p)) throw new Error(`Connect ${PLATFORM_META[p].name} before posting.`);
-    }
-    let body = data.content;
-    if (data.utm?.trim()) {
-      const sep = body.includes("http") ? " " : " ";
-      body = `${body.trim()}${sep}${data.utm.trim()}`.trim();
-    }
-    const jobId = crypto.randomUUID();
-    const media = JSON.stringify(data.mediaUrls ?? []);
-    await sql`
-      insert into publish_jobs (id, user_id, content, media_urls, scheduled_at, idempotency_key)
-      values (${jobId}, ${context.userId}, ${body}, ${media}, ${data.scheduledAt ?? null}, ${data.idempotencyKey ?? null})
-    `;
-    await sql`
-      insert into job_meta (job_id, first_comment, utm)
-      values (${jobId}, ${data.firstComment ?? ""}, ${data.utm ?? ""})
-      on conflict (job_id) do update set first_comment = excluded.first_comment, utm = excluded.utm
-    `;
-    const scheduled = Boolean(data.scheduledAt && new Date(data.scheduledAt).getTime() > Date.now());
-    const results: PublishTargetResult[] = [];
-    for (const platform of data.platforms) {
-      const sim = scheduled
-        ? { ok: true, error: "", latencyMs: 0 }
-        : simulatePublish(platform, body);
-      const status = scheduled ? "pending" : sim.ok ? "success" : "failed";
-      const externalId = sim.ok && !scheduled ? `${platform}-${jobId.slice(0, 8)}` : "";
-      await sql`
-        insert into publish_targets (id, job_id, platform, status, external_id, error, latency_ms)
-        values (${crypto.randomUUID()}, ${jobId}, ${platform}, ${status}, ${externalId}, ${sim.error}, ${sim.latencyMs})
-      `;
-      if (status === "success") {
-        await sql`
-          insert into feed_posts (
-            id, user_id, platform, external_id, author_handle, author_name, author_avatar,
-            content, media_urls, is_own, posted_at
-          ) values (
-            ${crypto.randomUUID()}, ${context.userId}, ${platform}, ${externalId},
-            'you', 'You', '', ${body}, ${media}, true, now()
-          )
-          on conflict (user_id, platform, external_id) do nothing
-        `;
-      }
-      results.push({
-        platform,
-        status,
-        externalId,
-        error: sim.error,
-        latencyMs: sim.latencyMs,
-      });
-    }
-    await audit(context.userId, scheduled ? "post.schedule" : "post.publish", data.platforms.join(","));
-    await notify(
-      context.userId,
-      scheduled ? "Post scheduled" : "Post published",
-      body.slice(0, 120),
-      scheduled ? "/dashboard/calendar" : "/dashboard/feed",
-    );
-    return { jobId, results };
-  });
+  .handler(async ({ context, data }) => runPublish(context.userId, data));
 
 async function listJob(userId: string, jobId: string) {
   const sql = await getSql();

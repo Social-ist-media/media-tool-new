@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { BarChart3, CalendarClock, FolderOpen, Inbox, LayoutGrid, Link2, PenLine, Rss, Search, Settings, Shield, Users } from "lucide-react";
+import { BarChart3, CalendarClock, CircleHelp, Code2, FileSpreadsheet, FolderOpen, Inbox, LayoutGrid, Link2, PenLine, Rss, Search, Settings, Shield, Users } from "lucide-react";
 import { searchWorkspace } from "@/lib/nexus/data";
 import { useComposer } from "@/lib/nexus/store";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,9 @@ const PAGES = [
   { to: "/dashboard/approvals", label: "Approvals", icon: Shield },
   { to: "/dashboard/team", label: "Team", icon: Users },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
-  { to: "/dashboard/developers", label: "Developers", icon: Shield },
+  { to: "/dashboard/developers", label: "Developers", icon: Code2 },
+  { to: "/dashboard/reports", label: "Reports", icon: FileSpreadsheet },
+  { to: "/dashboard/help", label: "Help", icon: CircleHelp },
 ] as const;
 
 export function CommandPalette() {

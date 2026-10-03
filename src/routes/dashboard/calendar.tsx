@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input, Label, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cancelScheduled, listHistory, releaseScheduled } from "@/lib/nexus/data";
+import { cancelScheduled, listConnections, listHistory, releaseScheduled } from "@/lib/nexus/data";
+import { createSeries, importScheduleCsv, listSeries, setSeriesActive, tickSeries, type SeriesRow } from "@/lib/nexus/pipeline";
 import { PLATFORM_META, PlatformGlyph } from "@/lib/nexus/platforms";
 import { useComposer } from "@/lib/nexus/store";
-import type { PublishHistoryItem } from "@/lib/nexus/types";
+import type { Connection, PlatformId, PublishHistoryItem } from "@/lib/nexus/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/calendar")({ component: CalendarPage });
@@ -36,12 +38,22 @@ function ymd(d: Date) {
 
 function CalendarPage() {
   const [jobs, setJobs] = useState<PublishHistoryItem[] | null>(null);
+  const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const [cursor, setCursor] = useState(() => new Date());
+  const [seriesBody, setSeriesBody] = useState("");
+  const [cadence, setCadence] = useState<"daily" | "weekly">("weekly");
+  const [seriesPlatforms, setSeriesPlatforms] = useState<PlatformId[]>([]);
+  const [csv, setCsv] = useState("content,platforms,scheduled_at\nLaunch note,twitter|bluesky,");
   const openWith = useComposer((s) => s.openWith);
 
   const load = () =>
-    listHistory()
-      .then(setJobs)
+    Promise.all([listHistory(), listSeries(), listConnections()])
+      .then(([history, nextSeries, nextConnections]) => {
+        setJobs(history);
+        setSeries(nextSeries);
+        setConnections(nextConnections);
+      })
       .catch(() => toast.error("Could not load calendar."));
 
   useEffect(() => {
@@ -135,6 +147,126 @@ function CalendarPage() {
           })}
         </div>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h2 className="font-semibold">Recurring</h2>
+          <p className="mt-1 text-sm text-muted">A series publishes the next slot when you run due posts. Connect the networks first.</p>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await createSeries({
+                  data: {
+                    content: seriesBody,
+                    platforms: seriesPlatforms,
+                    cadence,
+                  },
+                });
+                setSeriesBody("");
+                toast.success("Series saved.");
+                await load();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Could not save series.");
+              }
+            }}
+          >
+            <Textarea rows={3} value={seriesBody} onChange={(e) => setSeriesBody(e.target.value)} placeholder="The post that repeats" required />
+            <div className="flex flex-wrap gap-2">
+              {connections.map((c) => {
+                const on = seriesPlatforms.includes(c.platform);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() =>
+                      setSeriesPlatforms((prev) => (on ? prev.filter((p) => p !== c.platform) : [...prev, c.platform]))
+                    }
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs",
+                      on ? "border-border-strong bg-surface-2 text-fg" : "border-border text-muted",
+                    )}
+                  >
+                    {PLATFORM_META[c.platform].name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <Label htmlFor="cadence">Cadence</Label>
+                <select
+                  id="cadence"
+                  value={cadence}
+                  onChange={(e) => setCadence(e.target.value === "daily" ? "daily" : "weekly")}
+                  className="h-11 rounded-[12px] border border-border bg-surface px-3 text-sm"
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="daily">Daily</option>
+                </select>
+              </div>
+              <Button type="submit" disabled={seriesPlatforms.length === 0}>
+                Save series
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={async () => {
+                  const res = await tickSeries();
+                  toast.success(res.published ? `Published ${res.published} due post${res.published === 1 ? "" : "s"}.` : "Nothing due.");
+                  await load();
+                }}
+              >
+                Run due
+              </Button>
+            </div>
+          </form>
+          <ul className="mt-4 space-y-2">
+            {series.length === 0 && <li className="text-sm text-muted">No series yet.</li>}
+            {series.map((item) => (
+              <li key={item.id} className="rounded-[12px] border border-border px-3 py-3 text-sm">
+                <p className="line-clamp-2">{item.content}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {item.cadence} · next {new Date(item.nextRunAt).toLocaleString()} · {item.active ? "active" : "paused"}
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2"
+                  onClick={async () => {
+                    await setSeriesActive({ data: { id: item.id, active: !item.active } });
+                    await load();
+                  }}
+                >
+                  {item.active ? "Pause" : "Resume"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card>
+          <h2 className="font-semibold">CSV queue</h2>
+          <p className="mt-1 text-sm text-muted">Columns: content, platforms (twitter|bluesky), scheduled_at (ISO, optional).</p>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const res = await importScheduleCsv({ data: { csv } });
+                toast.success(`Queued ${res.queued}.`);
+                if (res.errors[0]) toast.error(res.errors[0]);
+                await load();
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Import failed.");
+              }
+            }}
+          >
+            <Textarea rows={8} value={csv} onChange={(e) => setCsv(e.target.value)} className="font-mono text-xs" />
+            <Button type="submit">Import rows</Button>
+          </form>
+        </Card>
+      </div>
 
       <div>
         <h2 className="mb-3 text-sm font-semibold">Queued</h2>

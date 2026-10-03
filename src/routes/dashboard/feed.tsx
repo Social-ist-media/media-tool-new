@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listFeed } from "@/lib/nexus/data";
-import { PLATFORM_META, PLATFORM_ORDER, PlatformIcon } from "@/lib/nexus/platforms";
+import { PLATFORM_META, PlatformIcon } from "@/lib/nexus/platforms";
 import type { FeedPost, PlatformId } from "@/lib/nexus/types";
+import { PLATFORM_IDS } from "@/lib/nexus/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/feed")({ component: FeedPage });
@@ -46,7 +47,7 @@ function FeedPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Unified feed</h1>
         <p className="mt-1 text-sm text-muted">Every connected network, chronological.</p>
       </div>
-      <div className="sticky top-2 z-10 space-y-3 rounded-[20px] border border-border bg-surface/95 p-3 backdrop-blur">
+      <div className="space-y-3 rounded-[20px] border border-border bg-surface p-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
           <Input
@@ -60,7 +61,7 @@ function FeedPage() {
           <FilterChip active={platform === "all"} onClick={() => setPlatform("all")}>
             All
           </FilterChip>
-          {PLATFORM_ORDER.map((p) => (
+          {PLATFORM_IDS.map((p) => (
             <FilterChip key={p} active={platform === p} onClick={() => setPlatform(p)}>
               <PlatformIcon platform={p} className="h-3.5 w-3.5" />
               {PLATFORM_META[p].name}

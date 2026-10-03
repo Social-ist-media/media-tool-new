@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deleteAccountData, exportCsv, getProfile, listAudit, updateProfile } from "@/lib/nexus/data";
+import { claimUsername } from "@/lib/nexus/identity";
 import type { AuditEvent, Profile } from "@/lib/nexus/types";
 
 export const Route = createFileRoute("/dashboard/settings")({ component: SettingsPage });
@@ -17,6 +18,7 @@ function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [timezone, setTimezone] = useState("UTC");
@@ -29,6 +31,7 @@ function SettingsPage() {
         const p = await getProfile();
         setProfile(p);
         setDisplayName(p.displayName);
+        setUsername(p.username);
         setBio(p.bio);
         setTheme(p.theme);
         setTimezone(p.timezone);
@@ -45,10 +48,15 @@ function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const next = await updateProfile({ data: { displayName, bio, theme, timezone } });
-      setProfile(next);
-      document.documentElement.classList.toggle("dark", next.theme !== "light");
-      document.documentElement.classList.toggle("light", next.theme === "light");
+      await updateProfile({ data: { displayName, bio, theme, timezone } });
+      if (username.trim() && username.trim().toLowerCase() !== profile.username) {
+        await claimUsername({ data: { username } });
+      }
+      const refreshed = await getProfile();
+      setProfile(refreshed);
+      setUsername(refreshed.username);
+      document.documentElement.classList.toggle("dark", refreshed.theme !== "light");
+      document.documentElement.classList.toggle("light", refreshed.theme === "light");
       toast.success("Profile updated.");
       setAudit(await listAudit());
     } catch (err) {
@@ -66,6 +74,11 @@ function SettingsPage() {
       </div>
       <Card>
         <form onSubmit={save} className="space-y-4">
+          <div>
+            <Label htmlFor="un">Username</Label>
+            <Input id="un" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ada_lane" required />
+            <p className="mt-1 text-xs text-subtle">Sign in with this or your email. Letters, numbers, underscores.</p>
+          </div>
           <div>
             <Label htmlFor="dn">Display name</Label>
             <Input id="dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />

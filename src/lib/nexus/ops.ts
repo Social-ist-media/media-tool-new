@@ -611,6 +611,7 @@ export const exportCsv = createServerFn({ method: "POST" })
     } else {
       csv = "platform,attempts,success,failed,success_rate,avg_latency_ms\n";
       for (const platform of PLATFORM_IDS) {
+        if (platform === "rss") continue;
         const [row] = await sql<{ attempts: number; ok: number; fail: number; avg: number }>`
           select
             count(*)::int as attempts,

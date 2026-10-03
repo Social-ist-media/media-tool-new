@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import {
   BarChart3,
   CalendarClock,
+  CircleHelp,
+  Code2,
+  FileSpreadsheet,
   FolderOpen,
   Inbox,
   LayoutGrid,
@@ -38,6 +41,9 @@ const NAV = [
   { to: "/dashboard/approvals", label: "Approvals", icon: Shield },
   { to: "/dashboard/connections", label: "Connections", icon: Link2 },
   { to: "/dashboard/team", label: "Team", icon: Users },
+  { to: "/dashboard/developers", label: "Developers", icon: Code2 },
+  { to: "/dashboard/reports", label: "Reports", icon: FileSpreadsheet },
+  { to: "/dashboard/help", label: "Help", icon: CircleHelp },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -48,6 +54,7 @@ function DashboardShell() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [unread, setUnread] = useState(0);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -62,6 +69,7 @@ function DashboardShell() {
         setConnections(dash.connections);
         setUnread(dash.stats.unreadInbox);
         setPendingApprovals(dash.stats.pendingApprovals);
+        setUsername(profile.username);
       } catch {
         /* layout still renders */
       }
@@ -142,12 +150,22 @@ function DashboardShell() {
               </Button>
             </div>
           </div>
+          {username === "" && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-border bg-surface px-4 py-3">
+              <p className="text-sm text-muted">
+                Claim a username so you can sign in with it. Google and X accounts start without one.
+              </p>
+              <Link to="/dashboard/settings" className="text-sm font-medium text-fg underline">
+                Choose username
+              </Link>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface/95 px-2 py-1 backdrop-blur md:hidden">
-        {NAV.slice(0, 5).map((item) => {
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex gap-1 overflow-x-auto border-t border-border bg-surface/95 px-2 py-1 backdrop-blur md:hidden">
+        {NAV.map((item) => {
           const exact = "exact" in item && item.exact;
           const active = exact ? pathname === item.to : pathname.startsWith(item.to);
           return (
@@ -155,7 +173,7 @@ function DashboardShell() {
               key={item.to}
               to={item.to}
               className={cn(
-                "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
+                "flex min-h-12 min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 px-2 text-[10px] font-medium",
                 active ? "text-fg" : "text-subtle",
               )}
             >

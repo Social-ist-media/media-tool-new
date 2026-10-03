@@ -6,12 +6,14 @@ import { Logo } from "@/components/nexus/logo";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authFailureMessage, rememberSessionToken } from "@/lib/nexus/bearer";
+import { resolveLoginIdentifier } from "@/lib/nexus/identity";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,14 +32,20 @@ function Login() {
     setError(null);
     setLoading(true);
     try {
-      const { error: err } = await authClient.signIn.email({ email, password });
-      if (err) {
-        setError(err.message || "Login failed");
+      const resolved = await resolveLoginIdentifier({ data: { identifier } });
+      if (!resolved.email) {
+        setError(resolved.error ?? "Enter an email or username.");
         return;
       }
+      const { data, error: err } = await authClient.signIn.email({ email: resolved.email, password });
+      if (err) {
+        setError(authFailureMessage(err, "Invalid email, username, or password."));
+        return;
+      }
+      rememberSessionToken(data?.token);
       window.location.assign("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(authFailureMessage(err, "Login failed."));
     } finally {
       setLoading(false);
     }
@@ -57,13 +65,13 @@ function Login() {
           <>
             <form onSubmit={submit} className="mt-6 space-y-4">
               <div>
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="identifier">Email or username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="identifier"
+                  autoComplete="username"
+                  placeholder="you@studio.com or ada_lane"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
                 />
               </div>

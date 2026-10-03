@@ -68,6 +68,9 @@ const AUTHORS: Record<PlatformId, Author[]> = {
     { handle: "@techchannel", name: "Tech Channel" },
     { handle: "@desknotes", name: "Desk Notes" },
   ],
+  rss: [
+    { handle: "feed", name: "RSS" },
+  ],
 };
 
 const SNIPPETS: Record<PlatformId, string[]> = {
@@ -131,6 +134,9 @@ const SNIPPETS: Record<PlatformId, string[]> = {
     "Channel note: the API freeze lifts Friday 18:00 UTC.",
     "Desk log: three tabs closed, one decision written down.",
     "If you only ship one thing this week, make it the rollback plan.",
+  ],
+  rss: [
+    "A feed item landed. Read it, then decide if it belongs in the queue.",
   ],
 };
 

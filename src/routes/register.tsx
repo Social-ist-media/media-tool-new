@@ -6,11 +6,14 @@ import { Logo } from "@/components/nexus/logo";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authFailureMessage, rememberSessionToken } from "@/lib/nexus/bearer";
+import { checkUsername, claimUsername, normalizeUsername, usernameError } from "@/lib/nexus/identity";
 
 export const Route = createFileRoute("/register")({ component: Register });
 
 function Register() {
   const { user, isPending } = useCurrentUserState();
+  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,24 +32,46 @@ function Register() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    const handleError = usernameError(username);
+    if (handleError) {
+      setError(handleError);
+      return;
+    }
+    if (name.trim().length < 1) {
+      setError("Add a display name.");
+      return;
+    }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError("Password must be at least 8 characters.");
       return;
     }
     setLoading(true);
     try {
-      const { error: err } = await authClient.signUp.email({
-        email,
+      const availability = await checkUsername({ data: { username } });
+      if (!availability.available) {
+        setError(availability.error ?? "That username is taken.");
+        return;
+      }
+      const { data, error: err } = await authClient.signUp.email({
+        email: email.trim(),
         password,
-        name,
+        name: name.trim(),
       });
       if (err) {
-        setError(err.message || "Registration failed");
+        setError(authFailureMessage(err, "Registration failed. Check the email and password and try again."));
+        return;
+      }
+      rememberSessionToken(data?.token);
+      try {
+        await claimUsername({ data: { username: normalizeUsername(username), displayName: name.trim() } });
+      } catch (claimErr) {
+        const message = claimErr instanceof Error ? claimErr.message : "Could not reserve that username.";
+        setError(`${message} Your account was created — sign in and pick a username in Settings.`);
         return;
       }
       window.location.assign("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(authFailureMessage(err, err instanceof Error ? err.message : "Registration failed."));
     } finally {
       setLoading(false);
     }
@@ -60,11 +85,23 @@ function Register() {
           <Logo />
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Create your workspace</h1>
-        <p className="mt-1 text-sm text-muted">One feed. Twelve networks. Ready in a minute.</p>
+        <p className="mt-1 text-sm text-muted">Pick a username, then one feed for twelve networks.</p>
 
         {authEnabled ? (
           <>
             <form onSubmit={submit} className="mt-6 space-y-4">
+              <div>
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  autoComplete="username"
+                  placeholder="ada_lane"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+                <p className="mt-1 text-xs text-subtle">3–20 characters. Letters, numbers, underscores. You can sign in with it.</p>
+              </div>
               <div>
                 <Label htmlFor="name">Display name</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
