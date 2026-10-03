@@ -1,23 +1,19 @@
-# NEXUS Console (this branch)
+# NEXUS console
 
-Working social command center built in Grok App Builder.
+`main` is this app. The previous Next.js frontend (the one that posted to a
+local API that was never in this repo) has been removed, so a Vercel deploy
+builds the console.
 
-**Do not merge this branch onto `main` as a drop-in.** `main` is still the Next.js stub that talks to a missing Fastify API (that is why login is broken on the current Vercel URL). This branch is a **TanStack Start** app with real Better Auth, per-user Postgres, and a 12-network console.
+## What works
 
-## What works here
-- Email/password + username sign-in (claim a handle at registration)
-- Specific registration errors instead of a generic failure
-- Unified feed, composer (drafts, schedule, media, Grok rewrite)
-- Inbox replies, month calendar with recurring series and CSV queue import
+- Email/password sign-up with a unique username
+- Sign-in by email or username, with a specific error instead of a generic failure
+- Unified feed, composer, inbox, calendar (recurring series + CSV import)
 - RSS listen sources
-- Analytics, reports/CSV, API keys, webhooks (`/api/v1/posts`)
-- Team invites, audit log, notifications, command palette
+- Analytics, reports, API keys, webhooks
+- Team invites, audit log, notifications
 
-## Layout
-- `src/lib/nexus/` — data, ops, identity, pipeline, demo connectors
-- `src/routes/dashboard/` — console surfaces
-- `migrations/` — auth, product, username, RSS, and recurring schema
+## Production env
 
-Live OAuth for Twitter/Meta is **not** in this tree (demo connectors). Native store apps are not in this tree (PWA only).
-
-Source of truth while developing: the Grok preview of this workspace.
+`DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` must be set on the
+host. Without `DATABASE_URL` there is no durable database on Vercel.

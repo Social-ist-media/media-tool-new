@@ -1,8 +1,11 @@
-node_modules
-.DS_Store
-.next
-.vercel
-dist
+node_modules/
+dist/
+.output/
+.vercel/
+.nitro/
+.tanstack/
+.grok/
 .env
-.env.local
+.env.*
+!.env.example
 *.log
