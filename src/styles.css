@@ -89,6 +89,7 @@
 .platform-glyph[data-platform="reddit"] { background: #d93a00; }
 .platform-glyph[data-platform="pinterest"] { background: #bd081c; }
 .platform-glyph[data-platform="telegram"] { background: #229ed9; }
+.platform-glyph[data-platform="rss"] { background: #0f766e; }
 
 .nx-grid {
   background-image:

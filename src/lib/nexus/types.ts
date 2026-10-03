@@ -11,6 +11,7 @@ export const PLATFORM_IDS = [
   "reddit",
   "pinterest",
   "telegram",
+  "rss",
 ] as const;
 
 export type PlatformId = (typeof PLATFORM_IDS)[number];
@@ -24,6 +25,7 @@ export type TeamRole = "admin" | "member" | "analyst";
 
 export interface Profile {
   userId: string;
+  username: string;
   displayName: string;
   bio: string;
   avatarUrl: string;
