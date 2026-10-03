@@ -2,6 +2,8 @@
 
 One feed. Twelve networks. A social command center.
 
+The full product spec, journeys, requirements, and delivery phases are in [PRODUCT.md](PRODUCT.md).
+
 This repository is the TanStack Start app (Better Auth, Postgres, the console).
 The old Next.js stub that called a missing API has been removed.
 
