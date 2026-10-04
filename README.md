@@ -2,6 +2,8 @@
 
 One feed. Twelve networks. A social command center.
 
+How this tool becomes the best in the category, and the order to build it, is in [WORLD.md](WORLD.md).
+
 The full product spec, journeys, requirements, and delivery phases are in [PRODUCT.md](PRODUCT.md).
 
 This repository is the TanStack Start app (Better Auth, Postgres, the console).
